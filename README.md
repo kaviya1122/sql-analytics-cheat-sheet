@@ -1,2 +1,153 @@
 # sql-analytics-cheat-sheet
 sql · data-analytics · business-intelligence · data-science · cheat-sheet · data-warehouse · analytics
+
+# 📊 Ultimate SQL Cookbook for Data Analytics
+
+A curated collection of production-ready SQL snippets, window functions, and optimization patterns for business intelligence, product analytics, and data engineering.
+
+## 📌 Table of Contents
+1. [Conditional Aggregations](#1-conditional-aggregations)
+2. [Advanced Window Functions](#2-advanced-window-functions)
+3. [Time-Series & Trend Analysis](#3-time-series--trend-analysis)
+4. [Customer & Product Analytics](#4-customer--product-analytics)
+5. [Query Performance Optimization](#5-query-performance-optimization)
+
+---
+
+## 1. Conditional Aggregations
+Pivot rows into columns and perform conditional calculations in a single pass without using multiple joins.
+
+### 🔹 Pivoting Monthly Metrics
+```sql
+SELECT 
+    user_id,
+    SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 1 THEN order_amount ELSE 0 END) AS jan_sales,
+    SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 2 THEN order_amount ELSE 0 END) AS feb_sales,
+    SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 3 THEN order_amount ELSE 0 END) AS mar_sales
+FROM orders
+WHERE order_date >= '2026-01-01'
+GROUP BY user_id;
+```
+
+### 🔹 User Segment Lifetime Value (LTV)
+```sql
+SELECT 
+    country,
+    COUNT(user_id) AS total_users,
+    SUM(CASE WHEN account_status = 'Premium' THEN lifetime_spend ELSE 0 END) AS premium_revenue,
+    AVG(CASE WHEN account_status = 'Free' THEN lifetime_spend ELSE 0 END) AS avg_free_user_spend
+FROM users
+GROUP BY country;
+```
+
+---
+
+## 2. Advanced Window Functions
+Perform calculations across a set of table rows that are related to the current row without crashing performance.
+
+### 🔹 Calculating Running Totals
+```sql
+SELECT 
+    order_date,
+    customer_id,
+    order_amount,
+    SUM(order_amount) OVER (
+        PARTITION BY customer_id 
+        ORDER BY order_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS running_total_spend
+FROM orders;
+```
+
+### 🔹 MoM Growth (Comparing Prior Row Values)
+```sql
+WITH monthly_revenue AS (
+    SELECT 
+        DATE_TRUNC('month', order_date) AS order_month,
+        SUM(order_amount) AS total_revenue
+    FROM orders
+    GROUP BY 1
+)
+SELECT 
+    order_month,
+    total_revenue,
+    LAG(total_revenue, 1) OVER (ORDER BY order_month) AS previous_month_revenue,
+    ROUND(
+        ((total_revenue - LAG(total_revenue, 1) OVER (ORDER BY order_month)) / 
+        LAG(total_revenue, 1) OVER (ORDER BY order_month)) * 100, 2
+    ) AS mom_growth_percentage
+FROM monthly_revenue;
+```
+
+---
+
+## 3. Time-Series & Trend Analysis
+Track historical trends, gaps, and rolling data windows.
+
+### 🔹 Moving Average (7-Day Rolling Revenue)
+```sql
+SELECT 
+    order_date,
+    SUM(order_amount) AS daily_revenue,
+    AVG(SUM(order_amount)) OVER (
+        ORDER BY order_date 
+        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+    ) AS rolling_7day_avg
+FROM orders
+GROUP BY order_date;
+```
+
+---
+
+## 4. Customer & Product Analytics
+Uncover retention patterns, user behavior, and cohort groupings.
+
+### 🔹 User Cohort Analysis (Signup Month vs Activity)
+```sql
+WITH user_cohorts AS (
+    SELECT 
+        user_id,
+        DATE_TRUNC('month', signup_date) AS cohort_month
+    FROM users
+),
+user_activity AS (
+    SELECT 
+        DISTINCT login.user_id,
+        DATE_TRUNC('month', login.login_time) AS activity_month
+    FROM user_logins login
+)
+SELECT 
+    c.cohort_month,
+    a.activity_month,
+    COUNT(DISTINCT c.user_id) AS active_users
+FROM user_cohorts c
+JOIN user_activity a ON c.user_id = a.user_id
+GROUP BY 1, 2
+ORDER BY 1, 2;
+```
+
+---
+
+## 5. Query Performance Optimization
+Best practices for writing efficient SQL queries against massive analytical data warehouses.
+
+* **Filter Early with WHERE:** Always drop unwanted rows before performing heavy `JOIN` operations.
+* **Avoid SELECT \*:** Explicitly name required columns to scan less data, saving execution time and cost in columnar data warehouses like BigQuery or Snowflake.
+* **Prefer CTEs Over Subqueries:** Use Common Table Expressions (`WITH` clauses) instead of nested subqueries to improve code readability and maintainability.
+```sql
+-- Clean & Optimized Pattern
+WITH active_customers AS (
+    SELECT user_id, region 
+    FROM users 
+    WHERE account_status = 'Active' -- Filter Early
+)
+SELECT 
+    c.region, 
+    COUNT(o.order_id) AS total_orders
+FROM active_customers c
+JOIN orders o ON c.user_id = o.user_id
+GROUP BY c.region;
+```
+
+---
+💡 *Feel free to fork this repository, add your own custom query snippets, and star it if it helps you speed up your data analytics workflow!*
