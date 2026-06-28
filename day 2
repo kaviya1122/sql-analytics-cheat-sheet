@@ -1,0 +1,98 @@
+-- ====================================================================
+-- 🔥 MASTER SQL DATA ANALYTICS CHEAT SHEET (RUNNABLE TEMPLATES)
+-- Updated: June 2026
+-- Purpose: Production-ready templates for advanced business intelligence,
+--          window functions, and user retention tracking.
+-- ====================================================================
+
+
+-- ====================================================================
+-- TOPIC 1: CONDITIONAL AGGREGATIONS & DATA PIVOTING
+-- Purpose: Transform row data into columns to avoid expensive joins.
+-- ====================================================================
+
+WITH mock_orders AS (
+    SELECT 101 AS user_id, CAST('2026-01-15' AS DATE) AS order_date, 150 AS order_amount UNION ALL
+    SELECT 101, CAST('2026-02-10' AS DATE), 200 UNION ALL
+    SELECT 102, CAST('2026-01-20' AS DATE), 300 UNION ALL
+    SELECT 102, CAST('2026-03-05' AS DATE), 50 UNION ALL
+    SELECT 103, CAST('2026-02-25' AS DATE), 450
+)
+SELECT 
+    user_id,
+    SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 1 THEN order_amount ELSE 0 END) AS jan_sales,
+    SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 2 THEN order_amount ELSE 0 END) AS feb_sales,
+    SUM(CASE WHEN EXTRACT(MONTH FROM order_date) = 3 THEN order_amount ELSE 0 END) AS mar_sales
+FROM mock_orders
+GROUP BY user_id
+ORDER BY user_id;
+
+
+-- ====================================================================
+-- TOPIC 2: ADVANCED WINDOW FUNCTIONS (RUNNING TOTALS & GROWTH)
+-- Purpose: Perform calculations across related rows without collapsing data.
+-- ====================================================================
+
+-- Pattern 2.1: User Spending Running Total
+WITH mock_sales AS (
+    SELECT 101 AS customer_id, CAST('2026-06-01' AS DATE) AS order_date, 50 AS order_amount UNION ALL
+    SELECT 101, CAST('2026-06-03' AS DATE), 30 UNION ALL
+    SELECT 102, CAST('2026-06-01' AS DATE), 100 UNION ALL
+    SELECT 101, CAST('2026-06-05' AS DATE), 20 UNION ALL
+    SELECT 102, CAST('2026-06-04' AS DATE), 40
+)
+SELECT 
+    customer_id,
+    order_date,
+    order_amount,
+    SUM(order_amount) OVER (
+        PARTITION BY customer_id 
+        ORDER BY order_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS running_total_spend
+FROM mock_sales
+ORDER BY customer_id, order_date;
+
+
+-- Pattern 2.2: Month-over-Month (MoM) Revenue Growth Rate
+WITH monthly_revenue AS (
+    SELECT CAST('2026-01-01' AS DATE) AS order_month, 10000 AS total_revenue UNION ALL
+    SELECT CAST('2026-02-01' AS DATE), 12500 UNION ALL
+    SELECT CAST('2026-03-01' AS DATE), 11000 UNION ALL
+    SELECT CAST('2026-04-01' AS DATE), 15000
+)
+SELECT 
+    order_month,
+    total_revenue,
+    LAG(total_revenue, 1) OVER (ORDER BY order_month) AS previous_month_revenue,
+    ROUND(
+        ((total_revenue - LAG(total_revenue, 1) OVER (ORDER BY order_month)) / 
+        LAG(total_revenue, 1) OVER (ORDER BY order_month)) * 100, 2
+    ) AS mom_growth_percentage
+FROM monthly_revenue;
+
+
+-- ====================================================================
+-- TOPIC 3: COHORT & RETENTION ANALYSIS
+-- Purpose: Group users by signup windows and map activity trends over time.
+-- ====================================================================
+
+WITH user_cohorts AS (
+    SELECT 1 AS user_id, CAST('2026-01-01' AS DATE) AS cohort_month UNION ALL
+    SELECT 2, CAST('2026-01-01' AS DATE) UNION ALL
+    SELECT 3, CAST('2026-02-01' AS DATE)
+),
+user_activity AS (
+    SELECT 1 AS user_id, CAST('2026-01-01' AS DATE) AS activity_month UNION ALL
+    SELECT 1, CAST('2026-02-01' AS DATE) UNION ALL
+    SELECT 2, CAST('2026-01-01' AS DATE) UNION ALL
+    SELECT 3, CAST('2026-02-01' AS DATE)
+)
+SELECT 
+    c.cohort_month,
+    a.activity_month,
+    COUNT(DISTINCT c.user_id) AS active_users
+FROM user_cohorts c
+JOIN user_activity a ON c.user_id = a.user_id
+GROUP BY 1, 2
+ORDER BY 1, 2;
