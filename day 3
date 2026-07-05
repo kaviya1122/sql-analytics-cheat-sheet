@@ -1,0 +1,104 @@
+-- ====================================================================
+-- 📊 THE ULTIMATE SQL CHEAT SHEET FOR DATA ANALYSTS
+-- Purpose: Reference script for foundational and advanced data tasks
+-- Author: Data Analyst Student
+-- ====================================================================
+
+-- --------------------------------------------------------------------
+-- 🔍 1. FUNDAMENTAL QUERY STRUCTURE & FILTERING
+-- --------------------------------------------------------------------
+-- Order of Execution: FROM -> WHERE -> GROUP BY -> HAVING -> SELECT -> ORDER BY -> LIMIT
+SELECT 
+    country,
+    product_line,
+    COUNT(order_id) AS total_orders,
+    SUM(sales_amount) AS gross_revenue
+FROM ecom_sales_data
+WHERE order_date >= '2025-01-01'           -- Filter rows before aggregation
+  AND status = 'Shipped'
+GROUP BY country, product_line             -- Grouping by non-aggregated columns
+HAVING SUM(sales_amount) > 5000            -- Filter aggregated groups
+ORDER BY gross_revenue DESC                -- Sort results highest to lowest
+LIMIT 10;                                  -- Restrict output rows
+
+
+-- --------------------------------------------------------------------
+-- 🔄 2. RELATIONAL DATA JOINS
+-- --------------------------------------------------------------------
+-- Combining tables cleanly to avoid data loss or unintentional duplication
+SELECT 
+    o.order_id,
+    o.order_date,
+    c.customer_name,
+    p.product_name,
+    p.price
+FROM orders o
+INNER JOIN customers c ON o.customer_id = c.customer_id     -- Only matching rows from both
+LEFT JOIN products p ON o.product_id = p.product_id;        -- All rows from left table (orders)
+
+
+-- --------------------------------------------------------------------
+-- 🛠️ 3. DATA CLEANING & TRANSFORMATION FUNCTIONS
+-- --------------------------------------------------------------------
+-- Crucial functions for handling missing values and structural inconsistencies
+SELECT 
+    user_id,
+    -- 1. Handle Missing/Null strings or values
+    COALESCE(email_address, 'No Email Provided') AS cleaned_email,
+    
+    -- 2. Clean messy string inputs
+    TRIM(LOWER(city_name)) AS standardized_city,
+    
+    -- 3. Extract parts of a timestamp/date
+    EXTRACT(YEAR FROM signup_date) AS signup_year,
+    
+    -- 4. Conditional Bucket Logic (If/Then statement)
+    CASE 
+        WHEN transaction_count > 50 THEN 'High-Value User'
+        WHEN transaction_count BETWEEN 10 AND 50 THEN 'Active User'
+        ELSE 'New/Inactive User'
+    END AS user_segment
+FROM users_raw_dataset
+WHERE DISTINCT user_id IS NOT NULL;        -- Drop absolute duplicates/empty entries
+
+
+-- --------------------------------------------------------------------
+-- 🧮 4. AGGREGATIONS & MATHEMATICAL METRICS
+-- --------------------------------------------------------------------
+-- Essential logic blocks for building business KPI reports
+SELECT 
+    store_id,
+    COUNT(DISTINCT customer_id) AS unique_shoppers, -- Distinct count avoids skewing metrics
+    ROUND(AVG(rating), 2) AS average_customer_rating,
+    MIN(item_cost) AS cheapest_item,
+    MAX(item_cost) AS most_expensive_item
+FROM retail_store_logs
+GROUP BY store_id;
+
+
+-- --------------------------------------------------------------------
+-- 🚀 5. ADVANCED ANALYTICS (WINDOW FUNCTIONS)
+-- --------------------------------------------------------------------
+-- Performing complex math across rows without collapsing them into a single row
+SELECT 
+    employee_id,
+    department,
+    salary,
+    
+    -- Rank employees inside their own specific department based on pay
+    RANK() OVER (
+        PARTITION BY department 
+        ORDER BY salary DESC
+    ) AS salary_rank_in_dept,
+    
+    -- Calculate a running total of salary expenses across the entire company
+    SUM(salary) OVER (
+        ORDER BY hire_date
+    ) AS cumulative_company_spend,
+    
+    -- Pull the previous row's value to calculate month-over-month trends
+    LAG(salary, 1) OVER (
+        PARTITION BY employee_id 
+        ORDER BY evaluation_date
+    ) AS previous_evaluated_salary
+FROM corporate_payroll_hub;
